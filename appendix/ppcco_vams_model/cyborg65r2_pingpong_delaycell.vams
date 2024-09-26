@@ -1,0 +1,76 @@
+//Verilog-AMS HDL for "cyborg65r2_anthony", "cyborg65r2_anthony_pingpong_delaycell"
+//"verilogams"
+
+`include "constants.vams"
+`include "disciplines.vams"
+
+module cyborg65r2_pingpong_delaycell(CNTL, DISCH, COMP_OUT, STEER_B, vdd, vss);
+//IO Declaration
+input CNTL, DISCH, STEER_B; // Declaring the inputs to the block
+output COMP_OUT; // Declaring the output from the block
+inout vdd, vss;
+
+// Signal Type Declaration Section
+electrical CNTL, V_REF; // Declaring the analog signals as electrical
+logic DISCH, COMP_OUT, STEER_B; // Declaring the Digital  signals as logic
+electrical Va;
+electrical Va_delayed;
+reg COMP;
+
+// Variable Declaration Section
+//real va_int;
+integer disch_flag;
+
+// Parameter Delcaration Section
+parameter real C = 100f;
+parameter real Vref = 0.6;
+parameter real Rdisch = 1k;
+parameter real t_dead = 50p;
+
+// Digital Assigns
+assign COMP_OUT = COMP;
+
+// Digital 'Clocked' Section
+initial
+begin
+COMP <= 1'b0;
+end
+
+always @(cross(V(Va_delayed)-Vref, 1, 1p))
+begin
+		COMP <= 1'b1;
+end
+
+always @(cross(V(Va_delayed)-Vref, -1, 1p))
+begin
+		COMP <= 1'b0;
+end
+
+// Analogue Section
+analog begin
+
+	@(initial_step) begin
+		disch_flag = 0;
+	end
+
+	@(posedge DISCH or negedge DISCH)
+	begin
+		if(DISCH > 0.6)
+			disch_flag = 1;
+		else
+			disch_flag = 0;
+	end
+
+	if (analysis("ic")) begin
+    		I(CNTL) <+ 1.0 * V(CNTL);
+	end
+
+	V(CNTL,Va) <+ 0;
+	I(Va) <+ C*ddt(V(Va));
+	I(Va) <+ disch_flag * V(Va) / Rdisch; 
+	V(Va_delayed) <+ absdelay(V(Va), t_dead);
+end
+
+
+
+endmodule

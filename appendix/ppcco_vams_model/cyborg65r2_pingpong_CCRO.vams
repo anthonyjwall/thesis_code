@@ -1,0 +1,102 @@
+//Verilog-AMS HDL for "cyborg65r2_anthony", "cyborg65r2_anthony_pingpong_CCRO" "verilogams"
+
+`include "constants.vams"
+`include "disciplines.vams"
+
+`timescale 1ps/1ps
+module cyborg65r2_pingpong_CCRO (CNTL, PHI_OUT, resetb, vdd, vss);
+// Input and Output Definitions
+input CNTL;
+output  PHI_OUT;
+input resetb;
+inout vdd, vss;
+
+// Signal type Definitions
+electrical CNTL;
+electrical [0:1] I_IN;
+logic PHI_OUT;
+
+
+electrical V_REF;
+
+
+reg [0:1] reg_DISCH;
+reg reg_PHI_OUT;
+reg [0:1] reg_STEER_B;
+logic [0:1] STEER_B;
+logic [0:1] DISCH;
+logic [0:1] COMP_OUT;
+
+// Parameter Delcaration Section
+parameter real V_ref = 0.398;
+parameter real C_L = 130f;
+parameter real Rdisch = 500;
+parameter real t_dead = 120p;
+
+
+// Variable Definitions
+integer steerDirection; // 0 is for cell 0 and 1 is for cell 1
+
+// Submodule Instantiations
+cyborg65r2_pingpong_delaycell # (.Vref(V_ref), .Rdisch(Rdisch), .C(C_L), .t_dead(t_dead)) I_DEL [0:1] (.CNTL( I_IN[0:1] ), .DISCH( DISCH[0:1] ), .COMP_OUT( COMP_OUT[0:1] ), .STEER_B( STEER_B[0:1] ), .vdd( vdd ), .vss( vss ) );
+
+
+// Digital Assigns
+assign DISCH[0:1] = reg_DISCH[0:1];
+assign PHI_OUT = reg_PHI_OUT;
+assign STEER_B = reg_STEER_B;
+
+// 'Clocked' Digital Processes
+
+initial begin
+	reg_DISCH[0:1] <= 2'b0;
+	reg_STEER_B[0:1] <= 2'b01;
+	steerDirection = 0;
+	reg_PHI_OUT <= 1'b0;
+end
+
+always begin
+	
+		@(posedge COMP_OUT[0])
+		begin
+			steerDirection = 1;
+			reg_STEER_B[0:1] <= 2'b10;
+			//$display("At time: %f ns, Setting steerDirection = 1, actual value: %d", $abstime*1e9, steerDirection);
+			reg_PHI_OUT <= 1'b1;
+			reg_DISCH[0] <= 1;
+			#1000;
+			reg_DISCH[0] <= 0;
+		end
+		@(posedge COMP_OUT[1])
+		begin
+			steerDirection = 0;
+			reg_STEER_B[0:1] <= 2'b01;
+			//$display("At time: %f ns, Setting steerDirection = 0, actual value: %d", $abstime*1e9, steerDirection);
+			reg_PHI_OUT <= 1'b0;
+			reg_DISCH[1] <= 1;
+			#1000;
+			reg_DISCH[1] <= 0;
+		end
+	
+end
+
+// Analog Section
+analog begin
+
+	if(steerDirection==0)
+	begin
+			I(CNTL,I_IN[1]) <+ 0;
+			V(CNTL,I_IN[0]) <+ 0;
+			
+	end
+	else if(steerDirection ==1)
+	begin
+			I(CNTL,I_IN[0]) <+ 0;
+			V(CNTL,I_IN[1]) <+ 0;
+			
+	end
+
+
+end
+
+endmodule
