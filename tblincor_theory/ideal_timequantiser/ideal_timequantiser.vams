@@ -1,0 +1,77 @@
+//Verilog-AMS HDL for "cyborg65_tools", "cyborg65_tools_timequant_w_corr" "verilogams"
+
+`include "constants.vams"
+`include "disciplines.vams"
+
+module cyborg65_tools_timequant_w_corr ( phi_in );
+// Input and Output Definitions
+input phi_in;	// CCRO Input Pulse
+// Signal type Definitions
+wire phi_in;
+
+// Parameter Delcaration Section
+parameter real T_Q = 10p;	//Time Quantisation Period
+parameter integer LSB_corr = 0;	// Number of Time LSBs of Correction per 
+parameter integer phasenoise_en = 1;	// Enable or Disable Phase Noise, 1=ON, 0=OFF (not implemented, set stdev to 0 instead)
+parameter real phasenoise_stdev = 1p;	// Standard Deviation of the phase noise
+
+// Variable Definitions
+real currentTime;
+real previousTime;
+real period;
+real currentTime_q;
+real previousTime_q;
+real period_q;
+real Npulses;
+integer randNum;
+integer seed;
+integer mean;
+integer std;
+real currentSampleJitter;
+// Submodule Instantiations
+
+// Digital Assigns
+
+
+// Initialisation
+initial begin
+	currentTime = 0;
+	previousTime = 0;
+	period = 0;
+	currentTime_q = 0;
+	previousTime_q = 0;
+	period_q = 0;
+	Npulses = 0;
+	randNum = 0;
+	currentSampleJitter = 0;
+	seed=2;
+	mean=0;
+	std=1;
+end
+
+// 'Clocked' Digital Processes
+	always begin
+		@(posedge phi_in)	// On the rising edge of the CCRO input pulse
+		begin
+			Npulses = Npulses + 1;	// Increment the pulse counter
+			
+			randNum = $dist_normal(seed, mean, std*10000);				// Create a zero mean random number for phase noise generation. Generates an integer, so need large std. Thus std is 10,000x multiplied
+			currentSampleJitter = randNum * phasenoise_stdev/10000;		// Generate the current sample's phase noise by multiplying the rand number by the phase noise stdev and dividing by the 10,000x multiplier
+
+			previousTime = currentTime;											// Take the old value in currentTime and save it in previousTime for period generation later
+			currentTime = ($abstime + currentSampleJitter) - Npulses*T_Q*LSB_corr;	// Calculate the current time by calling $absTime
+
+			period = currentTime - previousTime;									// Calculating the exact period by subtracting the current edge time from the previous edge time
+
+			previousTime_q = currentTime_q;										// Take the old value in the quantised currentTime and save in previousTime for quantised period generation later
+			currentTime_q = ceil(currentTime/T_Q)*T_Q;								// Calculating the quantised current time by dividing by T_Q and rounding up to the nearest integer, before dividing by T_Q again.
+																				// Ceil is used instead of floor to make the system appear causal.
+
+			period_q = currentTime_q - previousTime_q;								// Calculate the quantised period
+
+		
+		end
+		
+	end
+
+endmodule
